@@ -36,6 +36,23 @@ const getAutoHostIp = () => {
 
 const DEFAULT_IP = getAutoHostIp();
 
+const getWebSocketUrl = (serverIp: string) => {
+  if (!serverIp) return '';
+  const cleanInput = serverIp.trim();
+  if (cleanInput.startsWith('ws://') || cleanInput.startsWith('wss://')) {
+    return cleanInput;
+  }
+  const isLocalhost = cleanInput.startsWith('localhost') || cleanInput.startsWith('127.0.0.1');
+  
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location.protocol === 'https:' && !isLocalhost) {
+    // Over HTTPS, default to secure WebSocket (wss://) unless it's localhost
+    return `wss://${cleanInput}`;
+  }
+  
+  // Default to insecure WebSocket (ws://) on port 5000
+  return `ws://${cleanInput}:5000`;
+};
+
 export default function HomeScreen() {
   const {
     peerId,
@@ -146,9 +163,7 @@ export default function HomeScreen() {
       alert('Please enter a display name first.');
       return;
     }
-    const url = serverIpInput.startsWith('ws://') || serverIpInput.startsWith('wss://')
-      ? serverIpInput
-      : `ws://${serverIpInput}:5000`;
+    const url = getWebSocketUrl(serverIpInput);
     connectSignaling(url, targetRoom);
     setAppState('home');
   };
@@ -163,9 +178,7 @@ export default function HomeScreen() {
     setIsCreateGroupModalVisible(false);
     
     // Connect to the room and directly enter Chat
-    const url = serverIpInput.startsWith('ws://') || serverIpInput.startsWith('wss://')
-      ? serverIpInput
-      : `ws://${serverIpInput}:5000`;
+    const url = getWebSocketUrl(serverIpInput);
     connectSignaling(url, cleanGroupName);
     setAppState('chat');
     setNewGroupName('');
@@ -173,9 +186,7 @@ export default function HomeScreen() {
 
   const handleJoinRoom = (roomName: string) => {
     setTargetRoom(roomName);
-    const url = serverIpInput.startsWith('ws://') || serverIpInput.startsWith('wss://')
-      ? serverIpInput
-      : `ws://${serverIpInput}:5000`;
+    const url = getWebSocketUrl(serverIpInput);
     connectSignaling(url, roomName);
     setAppState('chat');
   };
@@ -218,6 +229,14 @@ export default function HomeScreen() {
         {appState === 'login' && (
           <View style={styles.loginContainer}>
             <View style={styles.loginCard}>
+              <TouchableOpacity 
+                style={{ position: 'absolute', top: 16, right: 16, zIndex: 10 }}
+                onPress={() => setShowSettings(!showSettings)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name={showSettings ? "close" : "settings-outline"} size={20} color="#8A8D93" />
+              </TouchableOpacity>
+
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 8 }}>
                 <Text style={styles.loginTitle}>Roto</Text>
                 <Ionicons name="wifi" size={26} color="#6C5CE7" />
@@ -236,6 +255,33 @@ export default function HomeScreen() {
                   autoCorrect={false}
                 />
               </View>
+
+              {showSettings && (
+                <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#2A2A38', width: '100%', marginBottom: 12 }}>
+                  {Platform.OS === 'web' && typeof window !== 'undefined' && window.location.protocol === 'https:' && (
+                    <View style={{ backgroundColor: '#FF17441A', padding: 10, borderRadius: 8, marginBottom: 12, borderWidth: 1, borderColor: '#FF174433' }}>
+                      <Text style={{ color: '#FF5252', fontSize: 11, lineHeight: 16, fontWeight: 'bold' }}>
+                        ⚠️ HTTPS Environment
+                      </Text>
+                      <Text style={{ color: '#E1E2E6', fontSize: 11, lineHeight: 15, marginTop: 2 }}>
+                        Browsers block insecure local connections (ws://) from HTTPS sites. Use secure WebSocket (wss://) or use Manual Mode.
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Signaling Server URL / IP</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="e.g. 192.168.1.100 or wss://..."
+                      placeholderTextColor="#757575"
+                      value={serverIpInput}
+                      onChangeText={setServerIpInput}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
+                </View>
+              )}
 
               <TouchableOpacity 
                 style={[styles.button, styles.connectButton]} 
@@ -586,9 +632,7 @@ export default function HomeScreen() {
                     cleanupPeerConnection();
                     setRemoteUserName('Peer');
                     if (roomId !== 'lobby' && !isManualMode) {
-                      const url = serverIpInput.startsWith('ws://') || serverIpInput.startsWith('wss://')
-                        ? serverIpInput
-                        : `ws://${serverIpInput}:5000`;
+                      const url = getWebSocketUrl(serverIpInput);
                       connectSignaling(url, 'lobby');
                       setTargetRoom('lobby');
                     }

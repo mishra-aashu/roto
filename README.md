@@ -1,56 +1,67 @@
-# Welcome to your Expo app 👋
+# Roto 📶💬
+Roto is a high-performance, cross-platform **Offline Peer-to-Peer (P2P) Messenger and Audio/Video Calling Application** built using React Native (Expo) and WebRTC. Inspired by the clean aesthetic of WhatsApp, Roto allows users on the same local network (WiFi / Hotspot) to discover peers, create chat rooms, text, and initiate video calls—completely offline, secure, and without relying on active internet connections.
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+---
 
-## Get started
+## 🚀 Key Features
 
-1. Install dependencies
+* **Zero-Configuration WiFi Discovery**: Automatically detects the local IP address of the signaling server on the subnet (using Expo Constants), eliminating the need for manual IP configuration.
+* **Smart Active WiFi Groups**: Users can create custom group rooms, and others on the same WiFi can join dynamically. Features a real-time header listing all active online group member names (e.g. `You, Raju, Amit`).
+* **Direct P2P One-on-One Chat**: Automatically discover other online devices in the same network and instantly initiate personal, secure sessions.
+* **Integrated Voice & Video Calls**: Peer-to-peer high-quality audio and video calls with a floating Picture-in-Picture (PiP) window for camera streams.
+* **Offline Chat History Persistence**: Uses AsyncStorage to save local and room chats securely on the device, maintaining history across sessions.
+* **100% Serverless Fallback (Manual Mode)**: An emergency manual offline mode that lets two peers establish a connection by copying and pasting a single JSON WebRTC SDP handshake key.
+* **WhatsApp-Inspired Premium Dark UI**: Stunning layout with active status badges, floating call controls, modern typography, and Ionicons for visual excellence.
 
-   ```bash
-   npm install
-   ```
+---
 
-2. Start the app
+## 🛠️ Architecture & Tech Stack
 
-   ```bash
-   npx expo start
-   ```
+1. **Frontend**: React Native, Expo (SDK 51+), Expo Router (File-based navigation).
+2. **WebRTC Integration**: Cross-platform WebRTC shims (`react-native-webrtc` for native, native HTML5 APIs for web).
+3. **Signaling Server**: Lightweight Node.js WebSocket (`ws`) server for dynamic IP and peer list broadcasting.
+4. **Storage**: `@react-native-async-storage/async-storage` for local message persistence.
 
-In the output, you'll find options to open the app in a
+---
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## 🏃 Getting Started
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+### 1. Run the Signaling Server
+The signaling server tracks active users and group rooms on the local network. 
 
 ```bash
-npm run reset-project
+# Navigate to the server folder
+cd server
+
+# Install dependencies
+npm install
+
+# Start the server
+node server.js
+```
+The server will run on port `5000` (e.g., `ws://<your-local-ip>:5000`).
+
+### 2. Run the Roto Mobile/Web Application
+Open a new terminal window in the root directory:
+
+```bash
+# Install dependencies
+npm install
+
+# Start Expo Developer Tools
+npx expo start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Press:
+- **`w`** to run in your web browser.
+- **`a`** to open on an Android emulator or device.
+- **`i`** to open on an iOS simulator or device.
 
-### Other setup steps
+*Tip: For native device testing, scan the QR code using the **Expo Go** app on your physical mobile device. Ensure your phone and the computer running the server are connected to the exact same WiFi network.*
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+---
 
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## 🔒 Security & Privacy
+* All text, video, and audio signals are established directly **Peer-to-Peer** using local WebRTC channels.
+* Media streams never pass through any central server.
+* Chat messages are stored entirely locally on your device's sandbox environment.

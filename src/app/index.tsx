@@ -251,16 +251,39 @@ export default function HomeScreen() {
         {appState === 'home' && (
           <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
             <View style={styles.homeHeader}>
-              <View>
+              <View style={{ flex: 1, marginRight: 8 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={styles.homeTitle}>Roto</Text>
                   <Ionicons name="wifi" size={22} color="#6C5CE7" />
                 </View>
-                <Text style={styles.homeSubtitle}>Local Network Discovery</Text>
+                <Text style={styles.homeSubtitle} numberOfLines={1} ellipsizeMode="tail">
+                  {isManualMode ? '100% Offline Manual Mode' : 'Local Network Discovery'}
+                </Text>
               </View>
-              <View style={styles.myProfileBadge}>
-                <Text style={styles.profileLabel}>My Name:</Text>
-                <Text style={styles.profileName}>{userName}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={styles.myProfileBadge}>
+                  <Text style={styles.profileLabel}>My Name:</Text>
+                  <Text style={styles.profileName} numberOfLines={1} ellipsizeMode="tail">{userName}</Text>
+                </View>
+                <TouchableOpacity 
+                  style={{ 
+                    backgroundColor: '#FF17441A', 
+                    width: 38, 
+                    height: 38, 
+                    borderRadius: 19, 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    borderWidth: 1,
+                    borderColor: '#FF174433'
+                  }} 
+                  onPress={() => {
+                    resetAll();
+                    setAppState('login');
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="log-out-outline" size={20} color="#FF1744" />
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -433,16 +456,6 @@ export default function HomeScreen() {
                     </View>
                   </>
                 )}
-
-                <TouchableOpacity 
-                  style={[styles.button, styles.disconnectButton, { marginTop: 8 }]} 
-                  onPress={() => {
-                    resetAll();
-                    setAppState('login');
-                  }}
-                >
-                  <Text style={styles.buttonText}>Disconnect & Exit</Text>
-                </TouchableOpacity>
               </View>
             ) : (
               <View style={styles.card}>

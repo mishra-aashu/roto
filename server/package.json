@@ -1,0 +1,12 @@
+{
+  "name": "wifir-signaling-server",
+  "version": "1.0.0",
+  "description": "Simple WebSocket signaling server for offline WiFi WebRTC connections",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

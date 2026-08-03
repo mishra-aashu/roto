@@ -70,9 +70,9 @@ export function useWebRTCChat() {
     const loadStoredMessages = async () => {
       let key = '';
       if (!isManualMode && roomId !== 'lobby') {
-        key = `@wifir_group_${roomId}`;
+        key = `@roto_group_${roomId}`;
       } else if ((isManualMode || roomId === 'lobby') && remoteUserName && remoteUserName !== 'Peer') {
-        key = `@wifir_p2p_${remoteUserName}`;
+        key = `@roto_p2p_${remoteUserName}`;
       }
 
       if (key) {
@@ -104,9 +104,9 @@ export function useWebRTCChat() {
     const saveMessages = async () => {
       let key = '';
       if (!isManualMode && roomId !== 'lobby') {
-        key = `@wifir_group_${roomId}`;
+        key = `@roto_group_${roomId}`;
       } else if ((isManualMode || roomId === 'lobby') && remoteUserName && remoteUserName !== 'Peer') {
-        key = `@wifir_p2p_${remoteUserName}`;
+        key = `@roto_p2p_${remoteUserName}`;
       }
 
       // Only save if the computed key matches the currently active loaded chat key

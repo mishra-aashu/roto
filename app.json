@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "wifir",
-    "slug": "wifir",
+    "name": "Roto",
+    "slug": "roto",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "wifir",
+    "scheme": "roto",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon"

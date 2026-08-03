@@ -1,5 +1,5 @@
 {
-  "name": "wifir-signaling-server",
+  "name": "roto-signaling-server",
   "version": "1.0.0",
   "description": "Simple WebSocket signaling server for offline WiFi WebRTC connections",
   "main": "server.js",

@@ -219,7 +219,7 @@ export default function HomeScreen() {
           <View style={styles.loginContainer}>
             <View style={styles.loginCard}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 8 }}>
-                <Text style={styles.loginTitle}>WifiR</Text>
+                <Text style={styles.loginTitle}>Roto</Text>
                 <Ionicons name="wifi" size={26} color="#6C5CE7" />
               </View>
               <Text style={styles.loginSubtitle}>Realtime Offline P2P Messenger</Text>
@@ -253,7 +253,7 @@ export default function HomeScreen() {
             <View style={styles.homeHeader}>
               <View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={styles.homeTitle}>WifiR</Text>
+                  <Text style={styles.homeTitle}>Roto</Text>
                   <Ionicons name="wifi" size={22} color="#6C5CE7" />
                 </View>
                 <Text style={styles.homeSubtitle}>Local Network Discovery</Text>

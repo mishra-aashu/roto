@@ -8,6 +8,7 @@ import {
   mediaDevices,
   isWebRTCSupported
 } from '@/utils/webrtc-shims';
+import { embeddedSignalingServer } from '@/services/embedded-signaling-server';
 
 export interface ChatMessage {
   id: string;
@@ -53,6 +54,7 @@ export function useWebRTCChat() {
   const [turnUsername, setTurnUsername] = useState('');
   const [turnPassword, setTurnPassword] = useState('');
   const [isManualMode, setIsManualMode] = useState(false);
+  const [isHostMode, setIsHostMode] = useState(false);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
 
@@ -608,14 +610,18 @@ export function useWebRTCChat() {
         }
       };
 
+      let hasError = false;
       ws.onerror = (err) => {
         console.error('Signaling socket error:', err);
+        hasError = true;
         setSignalingStatus('error');
       };
 
       ws.onclose = () => {
         console.log('Signaling socket closed');
-        setSignalingStatus('disconnected');
+        if (!hasError) {
+          setSignalingStatus('disconnected');
+        }
         setDiscoveredUsers([]);
         setActiveRooms([]);
       };
@@ -760,10 +766,34 @@ export function useWebRTCChat() {
     }
   }, [isManualMode, roomId, peerId]);
 
+  // Start Host Mode (runs native embedded signaling server on device)
+  const startHostMode = useCallback(async (port = 5000, targetRoom = 'lobby') => {
+    try {
+      setIsHostMode(true);
+      if (Platform.OS !== 'web') {
+        const result = await embeddedSignalingServer.start(port);
+        console.log('[useWebRTCChat] Embedded Host Server start result:', result);
+      }
+      // Connect local client to own server
+      const localUrl = `ws://127.0.0.1:${port}`;
+      connectSignaling(localUrl, targetRoom);
+    } catch (err) {
+      console.error('[useWebRTCChat] Failed to start host mode:', err);
+    }
+  }, [connectSignaling]);
+
+  // Stop Host Mode (stops embedded signaling server)
+  const stopHostMode = useCallback(() => {
+    setIsHostMode(false);
+    embeddedSignalingServer.stop();
+    resetAll();
+  }, [resetAll]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      // We don't call resetAll directly because we want to preserve states, but we clean up sockets
+      // Ensure embedded server and sockets are cleanly stopped when app closes/unmounts
+      embeddedSignalingServer.stop();
       if (wsRef.current) {
         wsRef.current.close();
       }
@@ -821,6 +851,10 @@ export function useWebRTCChat() {
     generatedOffer,
     generatedAnswer,
     gatheringIce,
-    resetAll
+    resetAll,
+    // embedded host mode
+    isHostMode,
+    startHostMode,
+    stopHostMode
   };
 }

@@ -13,6 +13,7 @@
     "expo-glass-effect": "~57.0.1",
     "expo-image": "~57.0.1",
     "expo-linking": "~57.0.4",
+    "expo-network": "^58.0.4",
     "expo-router": "~57.0.9",
     "expo-splash-screen": "~57.0.5",
     "expo-status-bar": "~57.0.1",
@@ -26,11 +27,13 @@
     "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
+    "react-native-tcp-socket": "^6.4.3",
     "react-native-web": "~0.21.0",
     "react-native-webrtc": "^124.0.8",
     "react-native-worklets": "0.10.1"
   },
   "devDependencies": {
+    "@types/node": "^26.6.5",
     "@types/react": "~19.2.2",
     "typescript": "~6.0.3"
   },
@@ -41,6 +44,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build": "expo export -p web",
+    "server": "node server/server.js",
     "lint": "expo lint"
   },
   "private": true

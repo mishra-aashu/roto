@@ -109,6 +109,7 @@ export default function HomeScreen() {
   } = useWebRTCChat();
 
   const [appState, setAppState] = useState<'login' | 'home' | 'chat'>('login');
+  const [activeHomeTab, setActiveHomeTab] = useState<'chats' | 'groups'>('chats');
   const [inputMessage, setInputMessage] = useState('');
   const [isCreateGroupModalVisible, setIsCreateGroupModalVisible] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
@@ -388,40 +389,50 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* HOME / DISCOVERY SCREEN */}
+        {/* HOME / DISCOVERY SCREEN (WHATSAPP STYLE) */}
         {appState === 'home' && (
-          <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-            <View style={styles.homeHeader}>
-              <View style={{ flex: 1, marginRight: 8 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={styles.homeTitle}>Roto</Text>
-                  <Ionicons name="wifi" size={22} color="#6C5CE7" />
-                  {isHostMode && (
-                    <View style={{ backgroundColor: '#00E67615', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, borderWidth: 1, borderColor: '#00E67644' }}>
-                      <Text style={{ color: '#00E676', fontSize: 10, fontWeight: 'bold' }}>👑 Host</Text>
+          <View style={styles.whatsappHomeContainer}>
+            {/* TOP HEADER */}
+            <View style={styles.whatsappMainHeader}>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={styles.whatsappMainTitle}>Roto</Text>
+                  {isHostMode ? (
+                    <View style={styles.hostBadgePill}>
+                      <Text style={styles.hostBadgeText}>👑 HOST</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.meshBadgePill}>
+                      <Text style={styles.meshBadgeText}>MESH</Text>
                     </View>
                   )}
                 </View>
-                <Text style={styles.homeSubtitle} numberOfLines={1} ellipsizeMode="tail">
-                  {isManualMode ? '100% Offline Manual Mode' : 'Local Network Discovery'}
-                </Text>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <View style={styles.myProfileBadge}>
-                  <Text style={styles.profileLabel}>My Name:</Text>
-                  <Text style={styles.profileName} numberOfLines={1} ellipsizeMode="tail">{userName}</Text>
+                <View style={styles.meshStatusRow}>
+                  <View style={[styles.networkDot, { 
+                    backgroundColor: signalingStatus === 'connected' ? '#00E676' : signalingStatus === 'connecting' ? '#FFD600' : '#FF5252' 
+                  }]} />
+                  <Text style={styles.networkSubtext}>
+                    {signalingStatus === 'connected' 
+                      ? (isHostMode ? 'Hosting WiFi Mesh (Port 5000)' : 'Connected to WiFi Mesh')
+                      : signalingStatus === 'connecting'
+                      ? 'Searching WiFi Mesh...'
+                      : 'Mesh Offline'}
+                  </Text>
                 </View>
+              </View>
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={styles.userProfilePill}>
+                  <View style={styles.userProfileAvatar}>
+                    <Text style={styles.userProfileAvatarText}>
+                      {userName ? userName.charAt(0).toUpperCase() : 'U'}
+                    </Text>
+                  </View>
+                  <Text style={styles.userProfileName} numberOfLines={1}>{userName}</Text>
+                </View>
+
                 <TouchableOpacity 
-                  style={{ 
-                    backgroundColor: '#FF17441A', 
-                    width: 38, 
-                    height: 38, 
-                    borderRadius: 19, 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    borderWidth: 1,
-                    borderColor: '#FF174433'
-                  }} 
+                  style={styles.exitButton}
                   onPress={() => {
                     if (isHostMode) {
                       stopHostMode();
@@ -432,304 +443,344 @@ export default function HomeScreen() {
                   }}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="log-out-outline" size={20} color="#FF1744" />
+                  <Ionicons name="log-out-outline" size={18} color="#FF5252" />
                 </TouchableOpacity>
               </View>
             </View>
 
-            <View style={styles.statusContainer}>
-              <View style={styles.statusCard}>
-                <View style={[styles.statusDot, { backgroundColor: signalingStatus === 'connected' ? '#00E676' : getStatusColor(signalingStatus) }]} />
-                <View>
-                  <Text style={styles.statusLabel}>WiFi Discovery</Text>
-                  <Text style={styles.statusValue}>{signalingStatus === 'connected' ? 'ONLINE' : signalingStatus.toUpperCase()}</Text>
-                </View>
-              </View>
-
-              <View style={styles.statusCard}>
-                <View style={[styles.statusDot, { 
-                  backgroundColor: connectionStatus === 'connected' ? '#00E676' : connectionStatus === 'connecting' ? '#FFD600' : '#6C5CE7' 
-                }]} />
-                <View>
-                  <Text style={styles.statusLabel}>P2P Channel</Text>
-                  <Text style={styles.statusValue}>
-                    {connectionStatus === 'connected' 
-                      ? 'CONNECTED' 
-                      : connectionStatus === 'connecting' 
-                      ? 'CONNECTING...' 
-                      : 'READY (IDLE)'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
             {!isManualMode ? (
-              <View style={{ gap: 16 }}>
-                {signalingStatus === 'connecting' && (
-                  <View style={styles.card}>
-                    <View style={styles.loadingContainer}>
-                      <ActivityIndicator size="large" color="#6C5CE7" />
-                      <Text style={styles.loadingText}>Searching WiFi network...</Text>
-                    </View>
-                  </View>
-                )}
-
-                {(signalingStatus === 'error' || signalingStatus === 'disconnected') && (
-                  <View style={styles.card}>
-                    <View style={styles.emptyPeersContainer}>
-                      <Ionicons name="alert-circle-outline" size={48} color="#FF1744" style={{ marginBottom: 12 }} />
-                      <Text style={[styles.emptyPeersText, { color: '#FF1744' }]}>
-                        {signalingStatus === 'error' ? 'Connection Failed' : 'Disconnected from Server'}
+              <>
+                {/* WHATSAPP TABS: CHATS vs GROUPS */}
+                <View style={styles.whatsappTabBar}>
+                  <TouchableOpacity
+                    style={[styles.whatsappTab, activeHomeTab === 'chats' && styles.whatsappTabActive]}
+                    onPress={() => setActiveHomeTab('chats')}
+                    activeOpacity={0.8}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Ionicons 
+                        name="chatbubble-ellipses" 
+                        size={17} 
+                        color={activeHomeTab === 'chats' ? '#00A884' : '#8A8D93'} 
+                      />
+                      <Text style={[styles.whatsappTabText, activeHomeTab === 'chats' && styles.whatsappTabTextActive]}>
+                        Direct Chats
                       </Text>
-                      <Text style={[styles.inviteText, { marginBottom: 16 }]}>
-                        Could not reach the local signaling server ({signalingUrl || serverIpInput}). Make sure the backend server is running (`npm run server`) and you are on the same WiFi network.
-                      </Text>
-                      <TouchableOpacity
-                        style={[styles.button, styles.connectButton, { marginBottom: 12 }]}
-                        onPress={handleJoinNetwork}
-                      >
-                        <Text style={styles.buttonText}>Retry Connection</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.button, { backgroundColor: '#1E1E26', borderWidth: 1, borderColor: '#2A2A38', width: '100%' }]}
-                        onPress={() => setIsManualMode(true)}
-                      >
-                        <Text style={[styles.buttonText, { color: '#6C5CE7' }]}>Use Manual Offline Mode</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
-
-                {signalingStatus === 'connected' && (
-                  <>
-                    {/* ACTIVE WIFI GROUPS CARD */}
-                    <View style={styles.card}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                          <Ionicons name="chatbubbles" size={18} color="#6C5CE7" />
-                          <Text style={[styles.cardTitle, { marginBottom: 0 }]}>Active WiFi Groups</Text>
+                      {discoveredUsers.length > 0 && (
+                        <View style={styles.tabBadge}>
+                          <Text style={styles.tabBadgeText}>{discoveredUsers.length}</Text>
                         </View>
-                        <TouchableOpacity
-                          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#2A2A38', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6 }}
-                          onPress={() => setIsCreateGroupModalVisible(true)}
+                      )}
+                    </View>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.whatsappTab, activeHomeTab === 'groups' && styles.whatsappTabActive]}
+                    onPress={() => setActiveHomeTab('groups')}
+                    activeOpacity={0.8}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Ionicons 
+                        name="people" 
+                        size={18} 
+                        color={activeHomeTab === 'groups' ? '#00A884' : '#8A8D93'} 
+                      />
+                      <Text style={[styles.whatsappTabText, activeHomeTab === 'groups' && styles.whatsappTabTextActive]}>
+                        Groups
+                      </Text>
+                      {activeRooms.filter(r => r.id !== 'lobby').length > 0 && (
+                        <View style={styles.tabBadge}>
+                          <Text style={styles.tabBadgeText}>
+                            {activeRooms.filter(r => r.id !== 'lobby').length}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                </View>
+
+                {/* CONNECTION WARNING IF DISCONNECTED */}
+                {(signalingStatus === 'error' || signalingStatus === 'disconnected') && (
+                  <View style={styles.warningBanner}>
+                    <Ionicons name="warning" size={16} color="#FFD600" />
+                    <Text style={styles.warningBannerText}>
+                      Not connected to WiFi signaling host.
+                    </Text>
+                    <TouchableOpacity style={styles.retryPill} onPress={handleJoinNetwork}>
+                      <Text style={styles.retryPillText}>Retry</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* TAB CONTENT: CHATS */}
+                {activeHomeTab === 'chats' && (
+                  <ScrollView 
+                    style={{ flex: 1 }} 
+                    contentContainerStyle={{ padding: 16, paddingBottom: 90 }}
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    {signalingStatus === 'connecting' ? (
+                      <View style={styles.emptyHomeContainer}>
+                        <ActivityIndicator size="large" color="#00A884" style={{ marginBottom: 16 }} />
+                        <Text style={styles.emptyHomeTitle}>Searching WiFi Network...</Text>
+                        <Text style={styles.emptyHomeSubtitle}>
+                          Locating active peers and mesh hosts on your local network
+                        </Text>
+                      </View>
+                    ) : discoveredUsers.length === 0 ? (
+                      <View style={styles.emptyHomeContainer}>
+                        <View style={styles.radarPulseCircle}>
+                          <Ionicons name="wifi" size={40} color="#00A884" />
+                        </View>
+                        <Text style={styles.emptyHomeTitle}>Looking for Nearby Peers</Text>
+                        <Text style={styles.emptyHomeSubtitle}>
+                          Open Roto on another phone connected to the same WiFi or Hotspot. They will appear here instantly!
+                        </Text>
+                        <TouchableOpacity 
+                          style={styles.refreshNearbyBtn} 
+                          onPress={handleJoinNetwork}
+                          activeOpacity={0.8}
                         >
-                          <Ionicons name="add" size={14} color="#FFFFFF" />
-                          <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: 'bold' }}>Create Group</Text>
+                          <Ionicons name="refresh" size={15} color="#00A884" />
+                          <Text style={styles.refreshNearbyBtnText}>Scan Again</Text>
                         </TouchableOpacity>
                       </View>
-
-                      {activeRooms.filter(room => room.id !== 'lobby').length === 0 ? (
-                        <Text style={{ color: '#8A8D93', fontSize: 12, textAlign: 'center', paddingVertical: 16 }}>
-                          No active groups. Create a group to start!
+                    ) : (
+                      <View style={{ gap: 8 }}>
+                        <Text style={styles.sectionHeaderLabel}>
+                          NEARBY USERS ON WIFI ({discoveredUsers.length})
                         </Text>
-                      ) : (
-                        <View style={{ gap: 4 }}>
-                          {activeRooms.filter(room => room.id !== 'lobby').map((room) => (
+                        {discoveredUsers.map((user) => (
+                          <TouchableOpacity
+                            key={user.peerId}
+                            style={styles.whatsappContactRow}
+                            onPress={() => connectToPeer(user.peerId, user.userName)}
+                            activeOpacity={0.75}
+                          >
+                            <View style={styles.contactAvatarWrapper}>
+                              <View style={styles.contactAvatar}>
+                                <Text style={styles.contactInitial}>
+                                  {user.userName ? user.userName.charAt(0).toUpperCase() : 'P'}
+                                </Text>
+                              </View>
+                              <View style={styles.contactOnlineDot} />
+                            </View>
+
+                            <View style={styles.contactInfo}>
+                              <Text style={styles.contactName}>{user.userName}</Text>
+                              <Text style={styles.contactSubtitle}>
+                                Tap to start direct P2P chat & call
+                              </Text>
+                            </View>
+
+                            <View style={styles.chatActionBtn}>
+                              <Ionicons name="chatbox" size={14} color="#FFFFFF" />
+                              <Text style={styles.chatActionBtnText}>Chat</Text>
+                            </View>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </ScrollView>
+                )}
+
+                {/* TAB CONTENT: GROUPS */}
+                {activeHomeTab === 'groups' && (
+                  <ScrollView 
+                    style={{ flex: 1 }} 
+                    contentContainerStyle={{ padding: 16, paddingBottom: 90 }}
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    {activeRooms.filter(room => room.id !== 'lobby').length === 0 ? (
+                      <View style={styles.emptyHomeContainer}>
+                        <View style={[styles.radarPulseCircle, { backgroundColor: '#1F2C34' }]}>
+                          <Ionicons name="chatbubbles" size={38} color="#00A884" />
+                        </View>
+                        <Text style={styles.emptyHomeTitle}>No Active WiFi Groups</Text>
+                        <Text style={styles.emptyHomeSubtitle}>
+                          Create a group room to chat and collaborate with everyone connected to this WiFi network.
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.createGroupPrimaryBtn}
+                          onPress={() => setIsCreateGroupModalVisible(true)}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons name="add" size={18} color="#FFFFFF" />
+                          <Text style={styles.createGroupPrimaryBtnText}>Create New Group</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <View style={{ gap: 8 }}>
+                        <Text style={styles.sectionHeaderLabel}>
+                          ACTIVE WIFI GROUPS ({activeRooms.filter(room => room.id !== 'lobby').length})
+                        </Text>
+                        {activeRooms.filter(room => room.id !== 'lobby').map((room) => {
+                          const isCurrentActive = targetRoom === room.id;
+                          return (
                             <TouchableOpacity
                               key={room.id}
-                              style={{ 
-                                flexDirection: 'row', 
-                                justifyContent: 'space-between', 
-                                alignItems: 'center', 
-                                backgroundColor: targetRoom === room.id ? '#1A2A20' : '#15151D', 
-                                paddingVertical: 12, 
-                                paddingHorizontal: 16, 
-                                borderRadius: 10, 
-                                borderWidth: 1, 
-                                borderColor: targetRoom === room.id ? '#00A884' : '#2A2A38',
-                              }}
+                              style={[styles.whatsappGroupRow, isCurrentActive && styles.whatsappGroupRowActive]}
                               onPress={() => {
-                                if (targetRoom === room.id) {
+                                if (isCurrentActive) {
                                   setAppState('chat');
                                 } else {
                                   handleJoinRoom(room.id);
                                 }
                               }}
+                              activeOpacity={0.75}
                             >
-                              <View style={{ flex: 1, marginRight: 8 }}>
+                              <View style={styles.groupAvatar}>
+                                <Ionicons name="people" size={20} color="#FFFFFF" />
+                              </View>
+
+                              <View style={styles.contactInfo}>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                  <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: 'bold' }}>
-                                    {room.name.replace(/_/g, ' ')}
-                                  </Text>
-                                  {targetRoom === room.id && (
-                                    <View style={{ backgroundColor: '#00A884', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                                      <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: 'bold' }}>Active</Text>
+                                  <Text style={styles.contactName}>{room.name.replace(/_/g, ' ')}</Text>
+                                  {isCurrentActive && (
+                                    <View style={styles.activeRoomBadge}>
+                                      <Text style={styles.activeRoomBadgeText}>Joined</Text>
                                     </View>
                                   )}
                                 </View>
-                                <Text style={{ color: '#8A8D93', fontSize: 11, marginTop: 4 }}>
+                                <Text style={styles.contactSubtitle}>
                                   {room.usersCount} {room.usersCount === 1 ? 'member' : 'members'} online
                                 </Text>
                               </View>
-                              <Ionicons name="chevron-forward" size={16} color="#8A8D93" />
+
+                              <Ionicons name="chevron-forward" size={18} color="#8A8D93" />
                             </TouchableOpacity>
-                          ))}
-                        </View>
-                      )}
-                    </View>
-
-                    {/* PEOPLE IN THIS ROOM CARD (Active People for P2P) */}
-                    <View style={styles.card}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                        <Ionicons name="person-circle" size={20} color="#00A884" />
-                        <Text style={[styles.cardTitle, { marginBottom: 0 }]}>
-                          Active People (P2P Chat)
-                        </Text>
+                          );
+                        })}
                       </View>
-
-                      {discoveredUsers.length === 0 ? (
-                        <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                          <Ionicons name="people-outline" size={32} color="#3E3E52" style={{ marginBottom: 8 }} />
-                          <Text style={{ color: '#8A8D93', fontSize: 12, textAlign: 'center', lineHeight: 18 }}>
-                            No other users online. Open the app on another device to start a P2P chat!
-                          </Text>
-                        </View>
-                      ) : (
-                        <View style={styles.peersList}>
-                          {discoveredUsers.map((user) => (
-                            <View key={user.peerId} style={styles.peerItem}>
-                              <View style={styles.peerInfo}>
-                                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#1E1E26', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#2A2A38' }}>
-                                  <Ionicons name="person" size={18} color="#00A884" />
-                                </View>
-                                <View>
-                                  <Text style={styles.peerName}>{user.userName}</Text>
-                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#00E676' }} />
-                                    <Text style={{ color: '#8A8D93', fontSize: 11 }}>Online</Text>
-                                  </View>
-                                </View>
-                              </View>
-                              <TouchableOpacity
-                                style={[styles.peerConnectButton, { backgroundColor: '#00A884', flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12 }]}
-                                onPress={() => connectToPeer(user.peerId, user.userName)}
-                              >
-                                <Ionicons name="chatbox-ellipses" size={14} color="#FFFFFF" />
-                                <Text style={styles.peerConnectButtonText}>Chat P2P</Text>
-                              </TouchableOpacity>
-                            </View>
-                          ))}
-                        </View>
-                      )}
-                    </View>
-                  </>
+                    )}
+                  </ScrollView>
                 )}
-              </View>
+
+                {/* WHATSAPP FLOATING ACTION BUTTON (FAB) */}
+                <TouchableOpacity
+                  style={styles.whatsappFab}
+                  onPress={() => setIsCreateGroupModalVisible(true)}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="add" size={26} color="#FFFFFF" />
+                </TouchableOpacity>
+              </>
             ) : (
-              <View style={styles.card}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                  <Text style={[styles.cardTitle, { marginBottom: 0 }]}>100% Offline Manual Mode</Text>
-                  <TouchableOpacity 
-                    style={{ paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6, backgroundColor: '#2A2A38' }} 
-                    onPress={() => {
-                      setIsManualMode(false);
-                      resetAll();
-                      setAppState('login');
-                    }}
-                  >
-                    <Text style={{ color: '#6C5CE7', fontSize: 12, fontWeight: '600' }}>WiFi Mode</Text>
-                  </TouchableOpacity>
+              <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+                <View style={styles.card}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <Text style={[styles.cardTitle, { marginBottom: 0 }]}>100% Offline Manual Mode</Text>
+                    <TouchableOpacity 
+                      style={{ paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6, backgroundColor: '#2A2A38' }} 
+                      onPress={() => {
+                        setIsManualMode(false);
+                        resetAll();
+                        setAppState('login');
+                      }}
+                    >
+                      <Text style={{ color: '#00A884', fontSize: 12, fontWeight: '600' }}>WiFi Mode</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <Text style={{ color: '#8A8D93', fontSize: 13, marginBottom: 16, lineHeight: 18 }}>
+                    Exchange WebRTC configuration keys manually with another peer to establish a secure connection without any server.
+                  </Text>
+
+                  <View style={[styles.sectionBorder, { marginBottom: 16, paddingBottom: 16 }]}>
+                    <Text style={styles.sectionTitle}>Step A: Peer 1 (Create Offer)</Text>
+                    <TouchableOpacity style={[styles.button, styles.actionButton, { marginTop: 8 }]} onPress={createManualOffer}>
+                      <Text style={styles.buttonText}>1. Create Offer Code</Text>
+                    </TouchableOpacity>
+
+                    {gatheringIce && (
+                      <View style={styles.gatheringContainer}>
+                        <ActivityIndicator size="small" color="#00A884" />
+                        <Text style={styles.gatheringText}>Gathering ICE Candidates...</Text>
+                      </View>
+                    )}
+
+                    {generatedOffer !== '' && (
+                      <View style={styles.outputContainer}>
+                        <Text style={styles.outputLabel}>Copy & send this code to Peer 2:</Text>
+                        <TextInput
+                          style={styles.codeTextarea}
+                          multiline
+                          editable={false}
+                          value={generatedOffer}
+                        />
+                        <TouchableOpacity
+                          style={styles.copyButton}
+                          onPress={() => handleCopy(generatedOffer, 'offer')}
+                        >
+                          <Text style={styles.copyButtonText}>
+                            {copiedText === 'offer' ? 'Copied! ✓' : 'Copy Code'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+
+                  <View style={[styles.sectionBorder, { marginBottom: 16, paddingBottom: 16 }]}>
+                    <Text style={styles.sectionTitle}>Step B: Peer 2 (Accept Offer & Answer)</Text>
+                    <Text style={[styles.inputLabel, { marginTop: 8 }]}>Paste Peer 1's Offer Code:</Text>
+                    <TextInput
+                      style={styles.textareaInput}
+                      multiline
+                      placeholder="Paste JSON offer here..."
+                      placeholderTextColor="#757575"
+                      value={manualOfferInput}
+                      onChangeText={setManualOfferInput}
+                    />
+                    <TouchableOpacity
+                      style={[styles.button, styles.actionButton, { marginTop: 8 }]}
+                      onPress={() => acceptManualOfferAndGenerateAnswer(manualOfferInput)}
+                    >
+                      <Text style={styles.buttonText}>2. Generate Answer Code</Text>
+                    </TouchableOpacity>
+
+                    {generatedAnswer !== '' && (
+                      <View style={styles.outputContainer}>
+                        <Text style={styles.outputLabel}>Copy & send this answer back to Peer 1:</Text>
+                        <TextInput
+                          style={styles.codeTextarea}
+                          multiline
+                          editable={false}
+                          value={generatedAnswer}
+                        />
+                        <TouchableOpacity
+                          style={styles.copyButton}
+                          onPress={() => handleCopy(generatedAnswer, 'answer')}
+                        >
+                          <Text style={styles.copyButtonText}>
+                            {copiedText === 'answer' ? 'Copied! ✓' : 'Copy Code'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+
+                  <View style={[styles.sectionBorder, { borderBottomWidth: 0, paddingBottom: 0 }]}>
+                    <Text style={styles.sectionTitle}>Step C: Peer 1 (Apply Answer)</Text>
+                    <Text style={[styles.inputLabel, { marginTop: 8 }]}>Paste Peer 2's Answer Code:</Text>
+                    <TextInput
+                      style={styles.textareaInput}
+                      multiline
+                      placeholder="Paste JSON answer here..."
+                      placeholderTextColor="#757575"
+                      value={manualAnswerInput}
+                      onChangeText={setManualAnswerInput}
+                    />
+                    <TouchableOpacity
+                      style={[styles.button, styles.connectButton, { marginTop: 8 }]}
+                      onPress={() => acceptManualAnswer(manualAnswerInput)}
+                    >
+                      <Text style={styles.buttonText}>3. Connect Peers</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-
-                <Text style={{ color: '#8A8D93', fontSize: 13, marginBottom: 16, lineHeight: 18 }}>
-                  Exchange WebRTC configuration keys manually with another peer to establish a secure connection without any server.
-                </Text>
-
-                <View style={[styles.sectionBorder, { marginBottom: 16, paddingBottom: 16 }]}>
-                  <Text style={styles.sectionTitle}>Step A: Peer 1 (Create Offer)</Text>
-                  <TouchableOpacity style={[styles.button, styles.actionButton, { marginTop: 8 }]} onPress={createManualOffer}>
-                    <Text style={styles.buttonText}>1. Create Offer Code</Text>
-                  </TouchableOpacity>
-
-                  {gatheringIce && (
-                    <View style={styles.gatheringContainer}>
-                      <ActivityIndicator size="small" color="#6C5CE7" />
-                      <Text style={styles.gatheringText}>Gathering ICE Candidates...</Text>
-                    </View>
-                  )}
-
-                  {generatedOffer !== '' && (
-                    <View style={styles.outputContainer}>
-                      <Text style={styles.outputLabel}>Copy & send this code to Peer 2:</Text>
-                      <TextInput
-                        style={styles.codeTextarea}
-                        multiline
-                        editable={false}
-                        value={generatedOffer}
-                      />
-                      <TouchableOpacity
-                        style={styles.copyButton}
-                        onPress={() => handleCopy(generatedOffer, 'offer')}
-                      >
-                        <Text style={styles.copyButtonText}>
-                          {copiedText === 'offer' ? 'Copied! ✓' : 'Copy Code'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
-
-                <View style={[styles.sectionBorder, { marginBottom: 16, paddingBottom: 16 }]}>
-                  <Text style={styles.sectionTitle}>Step B: Peer 2 (Accept Offer & Answer)</Text>
-                  <Text style={[styles.inputLabel, { marginTop: 8 }]}>Paste Peer 1's Offer Code:</Text>
-                  <TextInput
-                    style={styles.textareaInput}
-                    multiline
-                    placeholder="Paste JSON offer here..."
-                    placeholderTextColor="#757575"
-                    value={manualOfferInput}
-                    onChangeText={setManualOfferInput}
-                  />
-                  <TouchableOpacity
-                    style={[styles.button, styles.actionButton, { marginTop: 8 }]}
-                    onPress={() => acceptManualOfferAndGenerateAnswer(manualOfferInput)}
-                  >
-                    <Text style={styles.buttonText}>2. Generate Answer Code</Text>
-                  </TouchableOpacity>
-
-                  {generatedAnswer !== '' && (
-                    <View style={styles.outputContainer}>
-                      <Text style={styles.outputLabel}>Copy & send this answer back to Peer 1:</Text>
-                      <TextInput
-                        style={styles.codeTextarea}
-                        multiline
-                        editable={false}
-                        value={generatedAnswer}
-                      />
-                      <TouchableOpacity
-                        style={styles.copyButton}
-                        onPress={() => handleCopy(generatedAnswer, 'answer')}
-                      >
-                        <Text style={styles.copyButtonText}>
-                          {copiedText === 'answer' ? 'Copied! ✓' : 'Copy Code'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
-
-                <View style={[styles.sectionBorder, { borderBottomWidth: 0, paddingBottom: 0 }]}>
-                  <Text style={styles.sectionTitle}>Step C: Peer 1 (Apply Answer)</Text>
-                  <Text style={[styles.inputLabel, { marginTop: 8 }]}>Paste Peer 2's Answer Code:</Text>
-                  <TextInput
-                    style={styles.textareaInput}
-                    multiline
-                    placeholder="Paste JSON answer here..."
-                    placeholderTextColor="#757575"
-                    value={manualAnswerInput}
-                    onChangeText={setManualAnswerInput}
-                  />
-                  <TouchableOpacity
-                    style={[styles.button, styles.connectButton, { marginTop: 8 }]}
-                    onPress={() => acceptManualAnswer(manualAnswerInput)}
-                  >
-                    <Text style={styles.buttonText}>3. Connect Peers</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+              </ScrollView>
             )}
-
-          </ScrollView>
+          </View>
         )}
 
         {/* CHAT / ROOM SCREEN */}
@@ -805,7 +856,7 @@ export default function HomeScreen() {
                 >
                   <Ionicons name="videocam" size={22} color={isCallActive ? '#555555' : '#00A884'} />
                 </TouchableOpacity>
-              </View>
+              </View> 
             </View>
 
             {/* CALL OVERLAY (Floating PiP Video or Voice Banner) */}
@@ -1849,5 +1900,358 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minWidth: 80,
+  },
+  whatsappHomeContainer: {
+    flex: 1,
+    backgroundColor: '#0B141A',
+  },
+  whatsappMainHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: '#1F2C34',
+    borderBottomWidth: 1,
+    borderBottomColor: '#2A3942',
+  },
+  whatsappMainTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#E9EDEF',
+    letterSpacing: 0.5,
+  },
+  hostBadgePill: {
+    backgroundColor: '#00A88422',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#00A88466',
+  },
+  hostBadgeText: {
+    color: '#00E676',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  meshBadgePill: {
+    backgroundColor: '#2A3942',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  meshBadgeText: {
+    color: '#8696A0',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  meshStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 3,
+  },
+  networkDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+  },
+  networkSubtext: {
+    color: '#8696A0',
+    fontSize: 11,
+  },
+  userProfilePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#111B21',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#2A3942',
+    gap: 8,
+    maxWidth: 140,
+  },
+  userProfileAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#00A884',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userProfileAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  userProfileName: {
+    color: '#E9EDEF',
+    fontSize: 13,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  exitButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#FF174418',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FF174433',
+  },
+  whatsappTabBar: {
+    flexDirection: 'row',
+    backgroundColor: '#1F2C34',
+    borderBottomWidth: 1,
+    borderBottomColor: '#2A3942',
+  },
+  whatsappTab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: 3,
+    borderBottomColor: 'transparent',
+  },
+  whatsappTabActive: {
+    borderBottomColor: '#00A884',
+  },
+  whatsappTabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#8696A0',
+  },
+  whatsappTabTextActive: {
+    color: '#00A884',
+    fontWeight: 'bold',
+  },
+  tabBadge: {
+    backgroundColor: '#00A884',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 18,
+    alignItems: 'center',
+  },
+  tabBadgeText: {
+    color: '#111B21',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  warningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2A2000',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#FFD60033',
+    gap: 8,
+  },
+  warningBannerText: {
+    color: '#FFD600',
+    fontSize: 12,
+    flex: 1,
+  },
+  retryPill: {
+    backgroundColor: '#FFD600',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+  },
+  retryPillText: {
+    color: '#111B21',
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
+  emptyHomeContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 30,
+  },
+  radarPulseCircle: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: '#00A88415',
+    borderWidth: 1.5,
+    borderColor: '#00A88440',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  emptyHomeTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#E9EDEF',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptyHomeSubtitle: {
+    fontSize: 13,
+    color: '#8696A0',
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: 24,
+  },
+  refreshNearbyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#1F2C34',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#00A88444',
+  },
+  refreshNearbyBtnText: {
+    color: '#00A884',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  createGroupPrimaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#00A884',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 24,
+  },
+  createGroupPrimaryBtnText: {
+    color: '#111B21',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  sectionHeaderLabel: {
+    color: '#8696A0',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  whatsappContactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#111B21',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#1F2C34',
+    marginBottom: 4,
+  },
+  contactAvatarWrapper: {
+    position: 'relative',
+    marginRight: 12,
+  },
+  contactAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#1F2C34',
+    borderWidth: 1.5,
+    borderColor: '#00A884',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  contactInitial: {
+    color: '#00A884',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  contactOnlineDot: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#00E676',
+    borderWidth: 2,
+    borderColor: '#111B21',
+  },
+  contactInfo: {
+    flex: 1,
+  },
+  contactName: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#E9EDEF',
+    marginBottom: 2,
+  },
+  contactSubtitle: {
+    fontSize: 12,
+    color: '#8696A0',
+  },
+  chatActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#00A884',
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+  },
+  chatActionBtnText: {
+    color: '#111B21',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  whatsappGroupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#111B21',
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#1F2C34',
+    marginBottom: 4,
+  },
+  whatsappGroupRowActive: {
+    borderColor: '#00A884',
+    backgroundColor: '#0B201A',
+  },
+  groupAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#128C7E',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  activeRoomBadge: {
+    backgroundColor: '#00A884',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  activeRoomBadgeText: {
+    color: '#111B21',
+    fontSize: 9,
+    fontWeight: 'bold',
+  },
+  whatsappFab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#00A884',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 5,
   },
 });

@@ -17,6 +17,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useWebRTCChat } from '@/hooks/use-webrtc-chat';
 import { WebRTCVideo } from '@/components/webrtc-video';
 import { RadarScanner } from '@/components/RadarScanner';
+import { IncomingCallModal } from '@/components/IncomingCallModal';
+import { OutgoingCallModal } from '@/components/OutgoingCallModal';
 import Constants from 'expo-constants';
 import * as Network from 'expo-network';
 import { Ionicons } from '@expo/vector-icons';
@@ -107,6 +109,12 @@ export default function HomeScreen() {
     isHostMode,
     startHostMode,
     stopHostMode,
+    incomingCall,
+    outgoingCall,
+    initiateCall,
+    acceptIncomingCall,
+    rejectIncomingCall,
+    cancelOutgoingCall,
   } = useWebRTCChat();
 
   const [appState, setAppState] = useState<'login' | 'home' | 'chat'>('login');
@@ -299,11 +307,16 @@ export default function HomeScreen() {
   };
 
   const startVideoCall = () => {
-    startMedia(true, true);
+    initiateCall('video');
   };
 
   const startAudioCall = () => {
-    startMedia(false, true);
+    initiateCall('audio');
+  };
+
+  const handleAcceptCall = async () => {
+    setAppState('chat');
+    await acceptIncomingCall();
   };
 
   // Get status color
@@ -1000,6 +1013,21 @@ export default function HomeScreen() {
             </View>
           </View>
         </Modal>
+
+        {/* INCOMING CALL MODAL (ACCEPT / DECLINE) */}
+        <IncomingCallModal
+          visible={!!incomingCall}
+          callData={incomingCall}
+          onAccept={handleAcceptCall}
+          onReject={rejectIncomingCall}
+        />
+
+        {/* OUTGOING CALL MODAL (RINGING / CANCEL) */}
+        <OutgoingCallModal
+          visible={!!outgoingCall}
+          callData={outgoingCall}
+          onCancel={cancelOutgoingCall}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

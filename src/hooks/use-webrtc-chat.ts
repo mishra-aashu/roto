@@ -24,6 +24,18 @@ export interface IceServerConfig {
   credential?: string;
 }
 
+export interface IncomingCallInfo {
+  callerId: string;
+  callerName: string;
+  callType: 'audio' | 'video';
+}
+
+export interface OutgoingCallInfo {
+  targetId: string;
+  targetName: string;
+  callType: 'audio' | 'video';
+}
+
 export function useWebRTCChat() {
   // Connection states
   const [peerId] = useState(() => Math.random().toString(36).substring(7));
@@ -130,6 +142,8 @@ export function useWebRTCChat() {
   const [isAudioMuted, setIsAudioMuted] = useState(false);
   const [isVideoMuted, setIsVideoMuted] = useState(false);
   const [isCallActive, setIsCallActive] = useState(false);
+  const [incomingCall, setIncomingCall] = useState<IncomingCallInfo | null>(null);
+  const [outgoingCall, setOutgoingCall] = useState<OutgoingCallInfo | null>(null);
 
   // Manual configuration inputs / outputs
   const [manualOfferInput, setManualOfferInput] = useState('');
@@ -144,6 +158,8 @@ export function useWebRTCChat() {
   const wsRef = useRef<WebSocket | null>(null);
   const targetPeerIdRef = useRef<string | null>(null);
   const pendingCandidatesRef = useRef<any[]>([]);
+  const startMediaRef = useRef<any>(null);
+  const stopMediaRef = useRef<any>(null);
 
   // Get ICE server config array
   const getIceServers = useCallback((): IceServerConfig[] => {
@@ -221,6 +237,26 @@ export function useWebRTCChat() {
       const msg = JSON.parse(event.data);
       if (msg.type === 'system-name') {
         setRemoteUserName(msg.name);
+      } else if (msg.type === 'call-invite') {
+        console.log('[DataChannel] Received call-invite:', msg);
+        setIncomingCall({
+          callerId: targetPeerIdRef.current || 'peer',
+          callerName: msg.callerName || remoteUserName || 'Peer',
+          callType: msg.callType || 'video',
+        });
+      } else if (msg.type === 'call-accept') {
+        console.log('[DataChannel] Call accepted by peer');
+        setOutgoingCall(null);
+        startMediaRef.current?.(msg.callType === 'video', true);
+        setIsCallActive(true);
+      } else if (msg.type === 'call-reject') {
+        console.log('[DataChannel] Call rejected by peer');
+        setOutgoingCall(null);
+        stopMediaRef.current?.();
+        alert(`${remoteUserName || 'Peer'} declined the call.`);
+      } else if (msg.type === 'call-cancel') {
+        console.log('[DataChannel] Call cancelled by caller');
+        setIncomingCall(null);
       } else if (msg.type === 'chat') {
         setMessages((prev) => [
           ...prev,
@@ -236,7 +272,7 @@ export function useWebRTCChat() {
     } catch (err) {
       console.warn('Error handling data channel message:', err);
     }
-  }, []);
+  }, [remoteUserName]);
 
   // Setup Data Channel event listeners
   const setupDataChannel = useCallback((channel: any) => {
@@ -413,6 +449,8 @@ export function useWebRTCChat() {
     }
   }, [localStream, isManualMode]);
 
+  startMediaRef.current = startMedia;
+
   // Stop Media Stream (End Call)
   const stopMedia = useCallback(() => {
     if (localStream) {
@@ -434,6 +472,8 @@ export function useWebRTCChat() {
       }
     }
   }, [localStream, isManualMode, createPeerConnection, setupDataChannel, cleanupPeerConnection]);
+
+  stopMediaRef.current = stopMedia;
 
   // Toggle audio track
   const toggleAudio = useCallback(() => {
@@ -503,6 +543,168 @@ export function useWebRTCChat() {
       console.error('Failed to create offer:', err);
     }
   };
+
+  // Initiate Call (Voice or Video)
+  const initiateCall = useCallback(async (callType: 'audio' | 'video', targetIdParam?: string, targetNameParam?: string) => {
+    const targetId = targetIdParam || targetPeerIdRef.current;
+    const targetName = targetNameParam || remoteUserName || 'Peer';
+
+    if (!targetId) {
+      alert('Please connect to a peer first to start a call.');
+      return;
+    }
+
+    targetPeerIdRef.current = targetId;
+    setRemoteUserName(targetName);
+
+    console.log(`[Call] Initiating ${callType} call to ${targetName} (${targetId})`);
+
+    setOutgoingCall({
+      targetId,
+      targetName,
+      callType,
+    });
+
+    const invitePayload = {
+      type: 'call-invite',
+      callType,
+      callerId: peerId,
+      callerName: userNameRef.current,
+    };
+
+    // 1. Send via WebSocket signaling
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && targetId) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'signal',
+          roomId,
+          peerId,
+          targetId,
+          signal: invitePayload,
+        })
+      );
+    }
+
+    // 2. Also send via Data Channel if active
+    if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
+      try {
+        dataChannelRef.current.send(JSON.stringify(invitePayload));
+      } catch (e) {
+        console.warn('Failed to send call-invite via data channel:', e);
+      }
+    }
+  }, [peerId, roomId, remoteUserName]);
+
+  // Accept Incoming Call
+  const acceptIncomingCall = useCallback(async () => {
+    if (!incomingCall) return;
+
+    const { callerId, callerName, callType } = incomingCall;
+    console.log(`[Call] Accepting ${callType} call from ${callerName} (${callerId})`);
+
+    setIncomingCall(null);
+    setRemoteUserName(callerName);
+    targetPeerIdRef.current = callerId;
+
+    const acceptPayload = {
+      type: 'call-accept',
+      callType,
+    };
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'signal',
+          roomId,
+          peerId,
+          targetId: callerId,
+          signal: acceptPayload,
+        })
+      );
+    }
+
+    if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
+      try {
+        dataChannelRef.current.send(JSON.stringify(acceptPayload));
+      } catch (e) {
+        console.warn('Failed to send call-accept via data channel:', e);
+      }
+    }
+
+    // Start local media stream for Callee and mark call active
+    await startMedia(callType === 'video', true);
+    setIsCallActive(true);
+  }, [incomingCall, peerId, roomId, startMedia]);
+
+  // Reject Incoming Call
+  const rejectIncomingCall = useCallback(() => {
+    if (!incomingCall) return;
+
+    const { callerId } = incomingCall;
+    console.log(`[Call] Rejecting call from ${callerId}`);
+
+    const rejectPayload = {
+      type: 'call-reject',
+      reason: 'declined',
+    };
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'signal',
+          roomId,
+          peerId,
+          targetId: callerId,
+          signal: rejectPayload,
+        })
+      );
+    }
+
+    if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
+      try {
+        dataChannelRef.current.send(JSON.stringify(rejectPayload));
+      } catch (e) {
+        console.warn('Failed to send call-reject via data channel:', e);
+      }
+    }
+
+    setIncomingCall(null);
+  }, [incomingCall, peerId, roomId]);
+
+  // Cancel Outgoing Call
+  const cancelOutgoingCall = useCallback(() => {
+    if (!outgoingCall) return;
+
+    const targetId = outgoingCall.targetId;
+    console.log(`[Call] Cancelling outgoing call to ${targetId}`);
+
+    const cancelPayload = {
+      type: 'call-cancel',
+    };
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && targetId) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'signal',
+          roomId,
+          peerId,
+          targetId,
+          signal: cancelPayload,
+        })
+      );
+    }
+
+    if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
+      try {
+        dataChannelRef.current.send(JSON.stringify(cancelPayload));
+      } catch (e) {
+        console.warn('Failed to send call-cancel via data channel:', e);
+      }
+    }
+
+    stopMedia();
+    setOutgoingCall(null);
+  }, [outgoingCall, peerId, roomId, stopMedia]);
 
   // Connect to a discovered peer from the list
   const connectToPeer = useCallback(async (targetId: string, targetName: string) => {
@@ -583,11 +785,31 @@ export function useWebRTCChat() {
             }
 
             case 'signal': {
-              // WebRTC signal payload (offer, answer, or candidate)
+              // WebRTC signal payload (offer, answer, or candidate, or call invitations)
               const { senderId, senderName, signal } = message;
               let pc = peerConnectionRef.current;
 
-              if (signal.type === 'offer') {
+              if (signal.type === 'call-invite') {
+                console.log('[Signal] Received call-invite from:', senderId, signal);
+                setIncomingCall({
+                  callerId: senderId,
+                  callerName: senderName || signal.callerName || 'Peer',
+                  callType: signal.callType || 'video',
+                });
+              } else if (signal.type === 'call-accept') {
+                console.log('[Signal] Call accepted by peer');
+                setOutgoingCall(null);
+                startMediaRef.current?.(signal.callType === 'video', true);
+                setIsCallActive(true);
+              } else if (signal.type === 'call-reject') {
+                console.log('[Signal] Call rejected by peer');
+                setOutgoingCall(null);
+                stopMediaRef.current?.();
+                alert(`${senderName || 'Peer'} declined the call.`);
+              } else if (signal.type === 'call-cancel') {
+                console.log('[Signal] Caller cancelled call');
+                setIncomingCall(null);
+              } else if (signal.type === 'offer') {
                 console.log('Received WebRTC offer from:', senderId);
                 setRemoteUserName(senderName || 'Peer');
 
@@ -921,6 +1143,13 @@ export function useWebRTCChat() {
     toggleVideo,
     connectSignaling,
     cleanupPeerConnection,
+    // call invitations and controls
+    incomingCall,
+    outgoingCall,
+    initiateCall,
+    acceptIncomingCall,
+    rejectIncomingCall,
+    cancelOutgoingCall,
     // manual mode functions
     createManualOffer,
     acceptManualOfferAndGenerateAnswer,

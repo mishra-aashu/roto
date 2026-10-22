@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useWebRTCChat } from '@/hooks/use-webrtc-chat';
 import { WebRTCVideo } from '@/components/webrtc-video';
+import { RadarScanner } from '@/components/RadarScanner';
 import Constants from 'expo-constants';
 import * as Network from 'expo-network';
 import { Ionicons } from '@expo/vector-icons';
@@ -528,23 +529,10 @@ export default function HomeScreen() {
                         </Text>
                       </View>
                     ) : discoveredUsers.length === 0 ? (
-                      <View style={styles.emptyHomeContainer}>
-                        <View style={styles.radarPulseCircle}>
-                          <Ionicons name="wifi" size={40} color="#00A884" />
-                        </View>
-                        <Text style={styles.emptyHomeTitle}>Looking for Nearby Peers</Text>
-                        <Text style={styles.emptyHomeSubtitle}>
-                          Open Roto on another phone connected to the same WiFi or Hotspot. They will appear here instantly!
-                        </Text>
-                        <TouchableOpacity 
-                          style={styles.refreshNearbyBtn} 
-                          onPress={handleJoinNetwork}
-                          activeOpacity={0.8}
-                        >
-                          <Ionicons name="refresh" size={15} color="#00A884" />
-                          <Text style={styles.refreshNearbyBtnText}>Scan Again</Text>
-                        </TouchableOpacity>
-                      </View>
+                      <RadarScanner
+                        onScan={handleJoinNetwork}
+                        isScanning={isConnecting}
+                      />
                     ) : (
                       <View style={{ gap: 8 }}>
                         <Text style={styles.sectionHeaderLabel}>

@@ -109,7 +109,6 @@ export default function HomeScreen() {
   } = useWebRTCChat();
 
   const [appState, setAppState] = useState<'login' | 'home' | 'chat'>('login');
-  const [connectionMode, setConnectionMode] = useState<'host' | 'join'>('host');
   const [inputMessage, setInputMessage] = useState('');
   const [isCreateGroupModalVisible, setIsCreateGroupModalVisible] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
@@ -127,9 +126,7 @@ export default function HomeScreen() {
           const ip = await Network.getIpAddressAsync();
           if (ip && ip !== '0.0.0.0') {
             setDeviceIp(ip);
-            if (connectionMode === 'host') {
-              setServerIpInput(ip);
-            }
+            setServerIpInput(ip);
           }
         }
       } catch (e) {
@@ -137,7 +134,7 @@ export default function HomeScreen() {
       }
     }
     resolveNetworkIp();
-  }, [connectionMode]);
+  }, []);
 
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -184,24 +181,91 @@ export default function HomeScreen() {
     }
   };
 
-  const handleStartHost = async () => {
-    if (!userName.trim()) {
-      alert('Please enter a display name first.');
-      return;
-    }
-    await startHostMode(5000, targetRoom);
-    setAppState('home');
+  const [isConnecting, setIsConnecting] = useState(false);
+
+  const probeServer = (url: string, timeout = 400): Promise<boolean> => {
+    return new Promise((resolve) => {
+      let resolved = false;
+      let timer: any = null;
+      let ws: WebSocket | null = null;
+
+      const finish = (result: boolean) => {
+        if (!resolved) {
+          resolved = true;
+          if (timer) clearTimeout(timer);
+          if (ws) {
+            ws.onopen = null;
+            ws.onerror = null;
+            ws.onclose = null;
+            try { ws.close(); } catch (e) {}
+            ws = null;
+          }
+          resolve(result);
+        }
+      };
+
+      try {
+        ws = new WebSocket(url);
+        timer = setTimeout(() => finish(false), timeout);
+        ws.onopen = () => finish(true);
+        ws.onerror = () => finish(false);
+      } catch (err) {
+        finish(false);
+      }
+    });
   };
 
-  const handleJoinNetwork = () => {
+  const handleSmartConnect = async () => {
     if (!userName.trim()) {
       alert('Please enter a display name first.');
       return;
     }
-    const url = getWebSocketUrl(serverIpInput);
-    connectSignaling(url, targetRoom);
-    setAppState('home');
+    setIsConnecting(true);
+
+    try {
+      // Prioritize candidate server addresses:
+      // 1. Explicit user input if customized
+      // 2. Android Hotspot gateway default (192.168.43.1)
+      // 3. Local machine loopback (127.0.0.1)
+      // 4. Detected device subnet IP
+      const targetsToTry = [
+        getWebSocketUrl(serverIpInput),
+        'ws://192.168.43.1:5000',
+        'ws://127.0.0.1:5000',
+        getWebSocketUrl(deviceIp || DEFAULT_IP),
+      ];
+
+      const uniqueTargets = Array.from(new Set(targetsToTry.filter(Boolean)));
+      let connectedUrl: string | null = null;
+
+      for (const targetUrl of uniqueTargets) {
+        console.log('[SmartConnect] Probing:', targetUrl);
+        const reachable = await probeServer(targetUrl, 350);
+        if (reachable) {
+          console.log('[SmartConnect] Found active host at:', targetUrl);
+          connectedUrl = targetUrl;
+          break;
+        }
+      }
+
+      if (connectedUrl) {
+        console.log('[SmartConnect] Joining existing network host:', connectedUrl);
+        connectSignaling(connectedUrl, targetRoom);
+      } else {
+        console.log('[SmartConnect] No active host on network. Auto-starting Embedded Host Server...');
+        await startHostMode(5000, targetRoom);
+      }
+
+      setAppState('home');
+    } catch (err) {
+      console.error('[SmartConnect] Error:', err);
+      setAppState('home');
+    } finally {
+      setIsConnecting(false);
+    }
   };
+
+  const handleJoinNetwork = handleSmartConnect;
 
   const handleCreateGroup = () => {
     if (!newGroupName.trim()) {
@@ -291,124 +355,35 @@ export default function HomeScreen() {
                 />
               </View>
 
-              {/* ROLE SELECTION TABS */}
-              <View style={styles.roleTabContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.roleTab,
-                    connectionMode === 'host' && styles.roleTabActiveHost,
-                  ]}
-                  onPress={() => setConnectionMode('host')}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons
-                    name="shield-checkmark"
-                    size={16}
-                    color={connectionMode === 'host' ? '#00E676' : '#8A8D93'}
-                  />
-                  <Text
-                    style={[
-                      styles.roleTabText,
-                      connectionMode === 'host' && { color: '#FFFFFF', fontWeight: 'bold' },
-                    ]}
-                  >
-                    👑 Host Room
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.roleTab,
-                    connectionMode === 'join' && styles.roleTabActiveJoin,
-                  ]}
-                  onPress={() => setConnectionMode('join')}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons
-                    name="people"
-                    size={16}
-                    color={connectionMode === 'join' ? '#6C5CE7' : '#8A8D93'}
-                  />
-                  <Text
-                    style={[
-                      styles.roleTabText,
-                      connectionMode === 'join' && { color: '#FFFFFF', fontWeight: 'bold' },
-                    ]}
-                  >
-                    📱 Join Room
-                  </Text>
-                </TouchableOpacity>
+              {/* SMART AUTO-SYNC BADGE */}
+              <View style={styles.smartBadge}>
+                <Ionicons name="sparkles" size={15} color="#00E676" />
+                <Text style={styles.smartBadgeText}>
+                  Zero-Config Auto Sync (WiFi & Hotspot)
+                </Text>
               </View>
 
-              {/* HOST MODE DETAILS */}
-              {connectionMode === 'host' ? (
-                <View style={styles.modeCard}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                    <Ionicons name="radio" size={16} color="#00E676" />
-                    <Text style={{ color: '#00E676', fontSize: 13, fontWeight: 'bold' }}>
-                      Phone-As-Server (Host)
-                    </Text>
+              <TouchableOpacity
+                style={[
+                  styles.button,
+                  styles.connectButton,
+                  isConnecting && { opacity: 0.8 },
+                ]}
+                onPress={handleSmartConnect}
+                disabled={isConnecting}
+              >
+                {isConnecting ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <Text style={styles.buttonText}>Connecting...</Text>
                   </View>
-                  <Text style={{ color: '#A0A3A8', fontSize: 11, lineHeight: 16 }}>
-                    This phone runs the embedded signaling server on port 5000. When you close the app or exit, the server will automatically shut down cleanly.
-                  </Text>
-                  <View style={styles.ipBadgeRow}>
-                    <Text style={{ color: '#8A8D93', fontSize: 11 }}>Detected Local IP:</Text>
-                    <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: 'bold' }}>
-                      {deviceIp || DEFAULT_IP}:5000
-                    </Text>
+                ) : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <Ionicons name="enter-outline" size={20} color="#FFFFFF" />
+                    <Text style={styles.buttonText}>Enter Chat</Text>
                   </View>
-                  <TouchableOpacity
-                    style={[styles.button, { backgroundColor: '#00A884', marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]}
-                    onPress={handleStartHost}
-                  >
-                    <Ionicons name="play" size={16} color="#FFFFFF" />
-                    <Text style={styles.buttonText}>Start Room as Host</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <View style={styles.modeCard}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                    <Ionicons name="link" size={16} color="#6C5CE7" />
-                    <Text style={{ color: '#6C5CE7', fontSize: 13, fontWeight: 'bold' }}>
-                      Connect to Host Phone
-                    </Text>
-                  </View>
-
-                  {/* Quick Hotspot Button */}
-                  <TouchableOpacity
-                    style={styles.hotspotQuickBtn}
-                    onPress={() => setServerIpInput('192.168.43.1')}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="flash" size={14} color="#FFD600" />
-                    <Text style={{ color: '#FFD600', fontSize: 11, fontWeight: '600' }}>
-                      Quick Fill: Android Hotspot (192.168.43.1)
-                    </Text>
-                  </TouchableOpacity>
-
-                  <View style={[styles.inputGroup, { marginTop: 8, marginBottom: 0 }]}>
-                    <Text style={styles.inputLabel}>Host Phone's WiFi / Hotspot IP</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="e.g. 192.168.43.1 or 192.168.1.5"
-                      placeholderTextColor="#757575"
-                      value={serverIpInput}
-                      onChangeText={setServerIpInput}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-                  </View>
-
-                  <TouchableOpacity
-                    style={[styles.button, styles.connectButton, { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]}
-                    onPress={handleJoinNetwork}
-                  >
-                    <Ionicons name="log-in-outline" size={18} color="#FFFFFF" />
-                    <Text style={styles.buttonText}>Connect to Host</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+                )}
+              </TouchableOpacity>
 
               {showSettings && (
                 <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#2A2A38', width: '100%' }}>
@@ -429,6 +404,11 @@ export default function HomeScreen() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={styles.homeTitle}>Roto</Text>
                   <Ionicons name="wifi" size={22} color="#6C5CE7" />
+                  {isHostMode && (
+                    <View style={{ backgroundColor: '#00E67615', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, borderWidth: 1, borderColor: '#00E67644' }}>
+                      <Text style={{ color: '#00E676', fontSize: 10, fontWeight: 'bold' }}>👑 Host</Text>
+                    </View>
+                  )}
                 </View>
                 <Text style={styles.homeSubtitle} numberOfLines={1} ellipsizeMode="tail">
                   {isManualMode ? '100% Offline Manual Mode' : 'Local Network Discovery'}
@@ -464,30 +444,6 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-
-            {isHostMode && (
-              <View style={styles.hostActiveBanner}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-                  <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#00E676' }} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: '#00E676', fontSize: 13, fontWeight: 'bold' }}>
-                      👑 Phone Host Server Running (Port 5000)
-                    </Text>
-                    <Text style={{ color: '#8A8D93', fontSize: 11, marginTop: 2 }}>
-                      Peers can connect to: {deviceIp || DEFAULT_IP}:5000
-                    </Text>
-                  </View>
-                </View>
-                <TouchableOpacity
-                  style={{ backgroundColor: '#2A2A38', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 }}
-                  onPress={() => handleCopy(`${deviceIp || DEFAULT_IP}:5000`, 'hostIp')}
-                >
-                  <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '600' }}>
-                    {copiedText === 'hostIp' ? 'Copied! ✓' : 'Copy IP'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
 
             <View style={styles.statusContainer}>
               <View style={styles.statusCard}>
@@ -1015,82 +971,23 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0F0F12',
   },
-  roleTabContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#15151D',
-    borderRadius: 10,
-    padding: 4,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#2A2A38',
-    gap: 6,
-  },
-  roleTab: {
-    flex: 1,
+  smartBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 8,
     gap: 6,
-  },
-  roleTabActiveHost: {
-    backgroundColor: '#1E2D24',
-    borderWidth: 1,
-    borderColor: '#00E676',
-  },
-  roleTabActiveJoin: {
-    backgroundColor: '#231F3D',
-    borderWidth: 1,
-    borderColor: '#6C5CE7',
-  },
-  roleTabText: {
-    fontSize: 12,
-    color: '#8A8D93',
-  },
-  modeCard: {
-    backgroundColor: '#15151D',
-    padding: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#2A2A38',
-    marginBottom: 12,
-  },
-  ipBadgeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#1E1E26',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: '#2A2A38',
-  },
-  hotspotQuickBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#2A2715',
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#FFD60044',
-    marginBottom: 8,
-  },
-  hostActiveBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#15241B',
+    backgroundColor: '#00E67615',
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#00E67644',
-    marginBottom: 12,
+    borderColor: '#00E67633',
+    marginBottom: 16,
+  },
+  smartBadgeText: {
+    color: '#00E676',
+    fontSize: 12,
+    fontWeight: '600',
   },
   keyboardView: {
     flex: 1,

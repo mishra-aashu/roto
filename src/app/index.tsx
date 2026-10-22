@@ -355,14 +355,6 @@ export default function HomeScreen() {
                 />
               </View>
 
-              {/* SMART AUTO-SYNC BADGE */}
-              <View style={styles.smartBadge}>
-                <Ionicons name="sparkles" size={15} color="#00E676" />
-                <Text style={styles.smartBadgeText}>
-                  Zero-Config Auto Sync (WiFi & Hotspot)
-                </Text>
-              </View>
-
               <TouchableOpacity
                 style={[
                   styles.button,
@@ -447,18 +439,26 @@ export default function HomeScreen() {
 
             <View style={styles.statusContainer}>
               <View style={styles.statusCard}>
-                <View style={[styles.statusDot, { backgroundColor: getStatusColor(connectionStatus) }]} />
+                <View style={[styles.statusDot, { backgroundColor: signalingStatus === 'connected' ? '#00E676' : getStatusColor(signalingStatus) }]} />
                 <View>
-                  <Text style={styles.statusLabel}>P2P Connection</Text>
-                  <Text style={styles.statusValue}>{connectionStatus.toUpperCase()}</Text>
+                  <Text style={styles.statusLabel}>WiFi Discovery</Text>
+                  <Text style={styles.statusValue}>{signalingStatus === 'connected' ? 'ONLINE' : signalingStatus.toUpperCase()}</Text>
                 </View>
               </View>
 
               <View style={styles.statusCard}>
-                <View style={[styles.statusDot, { backgroundColor: getStatusColor(signalingStatus) }]} />
+                <View style={[styles.statusDot, { 
+                  backgroundColor: connectionStatus === 'connected' ? '#00E676' : connectionStatus === 'connecting' ? '#FFD600' : '#6C5CE7' 
+                }]} />
                 <View>
-                  <Text style={styles.statusLabel}>WiFi Discovery</Text>
-                  <Text style={styles.statusValue}>{signalingStatus.toUpperCase()}</Text>
+                  <Text style={styles.statusLabel}>P2P Channel</Text>
+                  <Text style={styles.statusValue}>
+                    {connectionStatus === 'connected' 
+                      ? 'CONNECTED' 
+                      : connectionStatus === 'connecting' 
+                      ? 'CONNECTING...' 
+                      : 'READY (IDLE)'}
+                  </Text>
                 </View>
               </View>
             </View>

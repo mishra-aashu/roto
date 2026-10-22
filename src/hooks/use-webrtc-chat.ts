@@ -143,6 +143,7 @@ export function useWebRTCChat() {
   const dataChannelRef = useRef<any>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const targetPeerIdRef = useRef<string | null>(null);
+  const pendingCandidatesRef = useRef<any[]>([]);
 
   // Get ICE server config array
   const getIceServers = useCallback((): IceServerConfig[] => {
@@ -162,13 +163,27 @@ export function useWebRTCChat() {
   // Clean up existing peer connection
   const cleanupPeerConnection = useCallback(() => {
     if (dataChannelRef.current) {
-      dataChannelRef.current.close();
+      try {
+        dataChannelRef.current.onopen = null;
+        dataChannelRef.current.onclose = null;
+        dataChannelRef.current.onerror = null;
+        dataChannelRef.current.onmessage = null;
+        dataChannelRef.current.close();
+      } catch (e) {}
       dataChannelRef.current = null;
     }
     if (peerConnectionRef.current) {
-      peerConnectionRef.current.close();
+      try {
+        peerConnectionRef.current.ontrack = null;
+        peerConnectionRef.current.onicecandidate = null;
+        peerConnectionRef.current.onconnectionstatechange = null;
+        peerConnectionRef.current.oniceconnectionstatechange = null;
+        peerConnectionRef.current.ondatachannel = null;
+        peerConnectionRef.current.close();
+      } catch (e) {}
       peerConnectionRef.current = null;
     }
+    pendingCandidatesRef.current = [];
     setRemoteStream(null);
     setConnectionStatus('disconnected');
     setIsCallActive(false);
@@ -219,12 +234,13 @@ export function useWebRTCChat() {
         ]);
       }
     } catch (err) {
-      console.error('Error handling data channel message:', err);
+      console.warn('Error handling data channel message:', err);
     }
   }, []);
 
   // Setup Data Channel event listeners
   const setupDataChannel = useCallback((channel: any) => {
+    if (!channel) return;
     dataChannelRef.current = channel;
 
     channel.onopen = () => {
@@ -238,7 +254,7 @@ export function useWebRTCChat() {
           name: userNameRef.current
         }));
       } catch (err) {
-        console.error('Failed to send username on channel open:', err);
+        console.warn('Failed to send username on channel open:', err);
       }
     };
 
@@ -249,8 +265,9 @@ export function useWebRTCChat() {
     };
 
     channel.onerror = (error: any) => {
-      console.error('Data channel error:', error);
-      setConnectionStatus('failed');
+      // Handle gracefully without throwing React Native red box
+      console.warn('Data channel state update/closure:', error?.message || 'closed event');
+      setConnectionStatus('disconnected');
     };
 
     channel.onmessage = handleDataChannelMessage;
@@ -346,8 +363,14 @@ export function useWebRTCChat() {
       }
     };
 
+    // Capture incoming data channels on receiver side
+    pc.ondatachannel = (event: any) => {
+      console.log('Received remote data channel:', event.channel?.label);
+      setupDataChannel(event.channel);
+    };
+
     return pc;
-  }, [cleanupPeerConnection, getIceServers, localStream, isManualMode, roomId, peerId]);
+  }, [cleanupPeerConnection, getIceServers, localStream, isManualMode, roomId, peerId, setupDataChannel]);
 
   // Start Media Stream (Audio/Video Call)
   const startMedia = useCallback(async (video = true, audio = true) => {
@@ -564,42 +587,100 @@ export function useWebRTCChat() {
               const { senderId, senderName, signal } = message;
               let pc = peerConnectionRef.current;
 
-              if (!pc) {
-                // Set remote peer details before connecting
-                setRemoteUserName(senderName || 'Peer');
-                pc = createPeerConnection(senderId);
-              }
-
               if (signal.type === 'offer') {
-                console.log('Received WebRTC offer');
-                await pc.setRemoteDescription(new RTCSessionDescription(signal));
-                
-                // Setup data channel listener (receiver side)
-                pc.ondatachannel = (event: any) => {
-                  setupDataChannel(event.channel);
-                };
+                console.log('Received WebRTC offer from:', senderId);
+                setRemoteUserName(senderName || 'Peer');
 
-                const answer = await pc.createAnswer();
-                await pc.setLocalDescription(answer);
+                // If pc is absent, closed, or already has an existing session description,
+                // re-using the old pc causes "The order of m-lines in subsequent offer doesn't match".
+                // Cleanly create a fresh peer connection for the new incoming offer session.
+                if (!pc || pc.connectionState === 'closed' || pc.connectionState === 'failed' || pc.remoteDescription || pc.signalingState !== 'stable') {
+                  cleanupPeerConnection();
+                  pc = createPeerConnection(senderId);
+                }
 
-                ws.send(
-                  JSON.stringify({
-                    type: 'signal',
-                    roomId: targetRoom,
-                    peerId,
-                    targetId: senderId,
-                    signal: answer
-                  })
-                );
+                if (pc) {
+                  try {
+                    pc.ondatachannel = (event: any) => {
+                      console.log('Received remote data channel on offer:', event.channel?.label);
+                      setupDataChannel(event.channel);
+                    };
+
+                    await pc.setRemoteDescription(new RTCSessionDescription(signal));
+                  } catch (descErr: any) {
+                    console.warn('Initial setRemoteDescription failed, recreating clean connection:', descErr?.message || descErr);
+                    // Recreate a clean connection if SDP session states clashed (e.g. m-line order mismatch)
+                    cleanupPeerConnection();
+                    pc = createPeerConnection(senderId);
+                    if (pc) {
+                      pc.ondatachannel = (event: any) => {
+                        console.log('Received remote data channel on recreated offer:', event.channel?.label);
+                        setupDataChannel(event.channel);
+                      };
+                      await pc.setRemoteDescription(new RTCSessionDescription(signal));
+                    }
+                  }
+
+                  if (pc) {
+                    // Flush any queued ICE candidates that arrived before remoteDescription was set
+                    if (pendingCandidatesRef.current.length > 0) {
+                      for (const cand of pendingCandidatesRef.current) {
+                        try {
+                          await pc.addIceCandidate(new RTCIceCandidate(cand));
+                        } catch (cErr) {
+                          console.warn('Error applying buffered ICE candidate:', cErr);
+                        }
+                      }
+                      pendingCandidatesRef.current = [];
+                    }
+
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+
+                    ws.send(
+                      JSON.stringify({
+                        type: 'signal',
+                        roomId: targetRoom,
+                        peerId,
+                        targetId: senderId,
+                        signal: answer
+                      })
+                    );
+                  }
+                }
               } else if (signal.type === 'answer') {
                 console.log('Received WebRTC answer');
-                await pc.setRemoteDescription(new RTCSessionDescription(signal));
+                if (pc && pc.signalingState === 'have-local-offer') {
+                  try {
+                    await pc.setRemoteDescription(new RTCSessionDescription(signal));
+
+                    // Flush any queued ICE candidates
+                    if (pendingCandidatesRef.current.length > 0) {
+                      for (const cand of pendingCandidatesRef.current) {
+                        try {
+                          await pc.addIceCandidate(new RTCIceCandidate(cand));
+                        } catch (cErr) {
+                          console.warn('Error applying buffered ICE candidate:', cErr);
+                        }
+                      }
+                      pendingCandidatesRef.current = [];
+                    }
+                  } catch (ansErr) {
+                    console.warn('Error setting remote answer description:', ansErr);
+                  }
+                } else {
+                  console.warn('Ignored unexpected answer in state:', pc?.signalingState);
+                }
               } else if (signal.candidate) {
                 console.log('Received WebRTC ICE candidate');
-                try {
-                  await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
-                } catch (candidateErr) {
-                  console.warn('Error adding received ICE candidate', candidateErr);
+                if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+                  try {
+                    await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+                  } catch (candidateErr) {
+                    console.warn('Error adding received ICE candidate', candidateErr);
+                  }
+                } else {
+                  pendingCandidatesRef.current.push(signal.candidate);
                 }
               }
               break;
